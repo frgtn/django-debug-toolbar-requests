@@ -12,6 +12,8 @@ _original_methods = {
     'post': requests.post,
     'patch': requests.patch,
     'put': requests.put,
+    'session_get': requests.Session.get,
+    'session_post': requests.Session.post,
 }
 
 results = []
@@ -147,6 +149,48 @@ def _put(url, **kwargs):
     return response
 
 
+@functools.wraps(_original_methods['session_get'])
+def _session_get(self, url, **kwargs):
+    start_time = time.time()
+    response = _original_methods['session_get'](self, url, **kwargs)
+    total_time = (time.time() - start_time) * 1000
+    is_json, content = parse_content(response)
+
+    results.append({
+        'method': 'GET',
+        'url': url,
+        'time': total_time,
+        'stacktrace': _get_stacktrace(),
+        'kwargs': kwargs,
+        'status_code': response.status_code,
+        'content': content,
+        'is_json': is_json,
+    })
+
+    return response
+
+
+@functools.wraps(_original_methods['session_post'])
+def _session_post(self, url, **kwargs):
+    start_time = time.time()
+    response = _original_methods['session_post'](self, url, **kwargs)
+    total_time = (time.time() - start_time) * 1000
+    is_json, content = parse_content(response)
+
+    results.append({
+        'method': 'POST',
+        'url': url,
+        'time': total_time,
+        'stacktrace': _get_stacktrace(),
+        'kwargs': kwargs,
+        'status_code': response.status_code,
+        'content': content,
+        'is_json': is_json,
+    })
+
+    return response
+
+
 def install_trackers():
     if requests.request != _request:
         requests.request = _request
@@ -154,6 +198,11 @@ def install_trackers():
         requests.get = _get
     if requests.post != _post:
         requests.post = _post
+
+    if requests.Session.get != _session_get:
+        requests.Session.get = _session_get
+    if requests.Session.post != _session_post:
+        requests.Session.post = _session_post
 
 
 def uninstall_trackers():
@@ -167,6 +216,11 @@ def uninstall_trackers():
         requests.patch = _original_methods['patch']
     if requests.put == _put:
         requests.put = _original_methods['put']
+
+    if requests.Session.get == _session_get:
+        requests.Session.get = _original_methods['session_get']
+    if requests.Session.post == _session_post:
+        requests.Session.post = _original_methods['session_post']
 
 
 def reset():
