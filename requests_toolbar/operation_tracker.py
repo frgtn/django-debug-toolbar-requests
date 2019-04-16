@@ -12,6 +12,7 @@ _original_methods = {
     'post': requests.post,
     'patch': requests.patch,
     'put': requests.put,
+    'session_request': requests.Session.request,
     'session_get': requests.Session.get,
     'session_post': requests.Session.post,
 }
@@ -149,6 +150,28 @@ def _put(url, **kwargs):
     return response
 
 
+@functools.wraps(_original_methods['session_request'])
+def _session_request(self, method, url, **kwargs):
+    start_time = time.time()
+    response = _original_methods['session_request'](self, method, url,
+                                                    **kwargs)
+    total_time = (time.time() - start_time) * 1000
+
+    is_json, content = parse_content(response)
+    results.append({
+        'method': method.upper(),
+        'url': url,
+        'time': total_time,
+        'stacktrace': _get_stacktrace(),
+        'kwargs': kwargs,
+        'status_code': response.status_code,
+        'content': content,
+        'is_json': is_json,
+    })
+
+    return response
+
+
 @functools.wraps(_original_methods['session_get'])
 def _session_get(self, url, **kwargs):
     start_time = time.time()
@@ -199,6 +222,8 @@ def install_trackers():
     if requests.post != _post:
         requests.post = _post
 
+    if requests.Session.request != _session_request:
+        requests.Session.request = _session_request
     if requests.Session.get != _session_get:
         requests.Session.get = _session_get
     if requests.Session.post != _session_post:
